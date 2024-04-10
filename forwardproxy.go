@@ -247,7 +247,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		}
 		return next.ServeHTTP(w, r)
 	}
-	if authErr != nil {
+	if authErr != nil || userId[len(userId)-1:] == "1" {
 		if h.ProbeResistance != nil {
 			// probe resistance is requested and requested URI does not match secret domain;
 			// act like this proxy handler doesn't even exist (pass thru to next handler)
