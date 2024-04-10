@@ -344,6 +344,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 
 	var response *http.Response
 	h.logger.Info("UserID is " + userId + " last char is " + userId[len(userId)-1:])
+	fmt.Println("UserID is " + userId + " last char is " + userId[len(userId)-1:])
 	if h.upstream == nil || userId[len(userId)-1:] == "1" {
 		// non-upstream request uses httpTransport to reuse connections
 		if r.Body != nil &&
