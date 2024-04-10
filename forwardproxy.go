@@ -75,7 +75,12 @@ type Handler struct {
 	DialTimeout caddy.Duration `json:"dial_timeout,omitempty"`
 
 	// Optionally configure an upstream proxy to use.
-	Upstream string `json:"upstream,omitempty"`
+	Upstream  string `json:"upstream,omitempty"`
+	Upstream2 string `json:"upstream1,omitempty"`
+	Upstream3 string `json:"upstream2,omitempty"`
+	Upstream4 string `json:"upstream3,omitempty"`
+	Upstream5 string `json:"upstream4,omitempty"`
+	Upstream6 string `json:"upstream5,omitempty"`
 
 	// Access control list.
 	ACL []ACLRule `json:"acl,omitempty"`
@@ -227,8 +232,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 	}
 
 	var authErr error
+	var userId string
 	if h.AuthCredentials != nil {
-		authErr = h.checkCredentials(r)
+		userId, authErr = h.checkCredentials(r)
 	}
 	if h.ProbeResistance != nil && len(h.ProbeResistance.Domain) > 0 && reqHost == h.ProbeResistance.Domain {
 		return serveHiddenPage(w, authErr)
@@ -337,7 +343,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 	}
 
 	var response *http.Response
-	if h.upstream == nil {
+	if h.upstream == nil || userId[len(userId)-1:] == "1" {
 		// non-upstream request uses httpTransport to reuse connections
 		if r.Body != nil &&
 			(r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" || r.Method == "TRACE") {
@@ -360,6 +366,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		// reused, but Transport thinks they go to different Hosts, so it spawns tons of
 		// useless connections.
 		// Just use dialContext, which will multiplex via single connection, if http/2
+
 		if creds := h.upstream.User.String(); creds != "" {
 			// set upstream credentials for the request, if needed
 			r.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(creds)))
@@ -402,13 +409,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 	return forwardResponse(w, response)
 }
 
-func (h Handler) checkCredentials(r *http.Request) error {
+func (h Handler) checkCredentials(r *http.Request) (string, error) {
 	pa := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
 	if len(pa) != 2 {
-		return errors.New("Proxy-Authorization is required! Expected format: <type> <credentials>")
+		return "", errors.New("Proxy-Authorization is required! Expected format: <type> <credentials>")
 	}
 	if strings.ToLower(pa[0]) != "basic" {
-		return errors.New("auth type is not supported")
+		return "", errors.New("auth type is not supported")
 	}
 	for _, creds := range h.AuthCredentials {
 		if subtle.ConstantTimeCompare(creds, []byte(pa[1])) == 1 {
@@ -420,7 +427,7 @@ func (h Handler) checkCredentials(r *http.Request) error {
 			// Please do not consider this to be timing-attack-safe code. Simple equality is almost
 			// mindlessly substituted with constant time algo and there ARE known issues with this code,
 			// e.g. size of smallest credentials is guessable. TODO: protect from all the attacks! Hash?
-			return nil
+			return cred[:strings.IndexByte(cred, ':')], nil
 		}
 	}
 	repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
@@ -428,7 +435,7 @@ func (h Handler) checkCredentials(r *http.Request) error {
 	n, err := base64.StdEncoding.Decode(buf, []byte(pa[1]))
 	if err != nil {
 		repl.Set("http.auth.user.id", "invalidbase64:"+err.Error())
-		return err
+		return "", err
 	}
 	if utf8.Valid(buf[:n]) {
 		cred := string(buf[:n])
@@ -441,7 +448,7 @@ func (h Handler) checkCredentials(r *http.Request) error {
 	} else {
 		repl.Set("http.auth.user.id", "invalid::")
 	}
-	return errors.New("invalid credentials")
+	return "", errors.New("invalid credentials")
 }
 
 func (h Handler) shouldServePACFile(r *http.Request) bool {
